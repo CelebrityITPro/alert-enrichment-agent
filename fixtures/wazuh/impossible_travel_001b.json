@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-11-23T09:11:40.000+0000",
+  "rule": {
+    "level": 3,
+    "description": "sshd: authentication success.",
+    "id": "5715",
+    "firedtimes": 2,
+    "groups": ["syslog", "sshd", "authentication_success"],
+    "mitre": {
+      "id": ["T1078"],
+      "tactic": ["Defense Evasion", "Persistence", "Privilege Escalation", "Initial Access"],
+      "technique": ["Valid Accounts"]
+    }
+  },
+  "agent": {
+    "id": "002",
+    "name": "lab-ubuntu-02",
+    "ip": "192.168.56.11"
+  },
+  "manager": {
+    "name": "wazuh-manager"
+  },
+  "id": "1763889100.330587",
+  "full_log": "Nov 23 09:11:40 lab-ubuntu-02 sshd[4532]: Accepted password for jdoe from 203.0.113.77 port 55890 ssh2",
+  "predecoder": {
+    "program_name": "sshd",
+    "timestamp": "Nov 23 09:11:40",
+    "hostname": "lab-ubuntu-02"
+  },
+  "decoder": {
+    "parent": "sshd",
+    "name": "sshd"
+  },
+  "data": {
+    "srcip": "203.0.113.77",
+    "srcport": "55890",
+    "dstuser": "jdoe"
+  },
+  "location": "/var/log/auth.log"
+}

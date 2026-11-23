@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-11-23T12:30:05.000+0000",
+  "rule": {
+    "level": 8,
+    "description": "New user added to the system.",
+    "id": "5902",
+    "firedtimes": 1,
+    "groups": ["syslog", "adduser"],
+    "mitre": {
+      "id": ["T1136"],
+      "tactic": ["Persistence"],
+      "technique": ["Create Account"]
+    }
+  },
+  "agent": {
+    "id": "001",
+    "name": "lab-ubuntu-01",
+    "ip": "192.168.56.10"
+  },
+  "manager": {
+    "name": "wazuh-manager"
+  },
+  "id": "1763901005.402918",
+  "full_log": "Nov 23 12:30:05 lab-ubuntu-01 useradd[5120]: new user: name=svc-backup, UID=1002, GID=1002, home=/home/svc-backup, shell=/bin/bash, from=/dev/pts/0",
+  "predecoder": {
+    "program_name": "useradd",
+    "timestamp": "Nov 23 12:30:05",
+    "hostname": "lab-ubuntu-01"
+  },
+  "decoder": {
+    "name": "useradd"
+  },
+  "data": {
+    "dstuser": "svc-backup",
+    "uid": "1002",
+    "gid": "1002",
+    "home": "/home/svc-backup",
+    "shell": "/bin/bash"
+  },
+  "location": "/var/log/auth.log"
+}
