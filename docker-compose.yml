@@ -1,0 +1,29 @@
+# Skeleton - services get added phase by phase.
+# Wazuh (Phase 1): use the official single-node stack from the wazuh-docker repo
+#   rather than hand-writing it here; we'll decide later whether to include it
+#   or run it as a separate compose project.
+
+services:
+  pipeline:
+    build: .
+    env_file: .env
+    volumes:
+      - ./fixtures:/app/fixtures:ro
+      - ./data:/app/data
+    depends_on:
+      - ollama
+    # Your first task: create pipeline/__main__.py so this command works.
+    command: ["python", "-m", "pipeline"]
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+
+  # misp:   (Phase 3)
+  # iris:   (Phase 6)
+
+volumes:
+  ollama_models:

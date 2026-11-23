@@ -1,0 +1,34 @@
+# Secrets - never commit
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local data / caches (TI lookup cache, docker volumes, model files)
+data/
+cache/
+*.sqlite
+*.db
+infra/**/volumes/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Private working notes - kept local, never pushed
+CLAUDE.md
+.claude/
+docs/adr/
