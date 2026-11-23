@@ -1,3 +1,5 @@
+"""Tests for normalize(): real fixture alerts plus messy edge cases (missing and null sections)."""
+
 import json
 from pathlib import Path
 

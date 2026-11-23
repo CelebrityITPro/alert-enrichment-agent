@@ -18,7 +18,7 @@ services:
   ollama:
     image: ollama/ollama
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"   # localhost only - never expose to the network
     volumes:
       - ollama_models:/root/.ollama
 
