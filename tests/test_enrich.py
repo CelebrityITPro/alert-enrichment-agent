@@ -1,10 +1,44 @@
 """Tests for the enrich step. None of these call the real API: invalid/private IPs
-are skipped before any lookup, and public-IP tests replace check_ip with a fake."""
+are skipped before any lookup, and every provider is replaced with a fake."""
 
+import pytest
 import requests
 
 import pipeline.enrich
+import pipeline.intel.otx
 from pipeline.enrich import enrich
+
+
+@pytest.fixture(autouse=True)
+def stub_otx(monkeypatch):
+    """Default fake for OTX in every test here. enrich.py calls `otx.check_ip`
+    through the module, so we patch the attribute on that module."""
+    monkeypatch.setattr(pipeline.intel.otx, "check_ip", lambda ip: {"stub": "otx_ip"})
+    monkeypatch.setattr(pipeline.intel.otx, "check_hash", lambda h: {"stub": "otx_hash"})
+
+
+def test_public_ip_gets_both_ip_providers(monkeypatch):
+    monkeypatch.setattr(pipeline.enrich, "check_ip", lambda ip: {"stub": "abuseipdb"})
+    result = enrich({"src_ip": "8.8.8.8"})
+    assert set(result["intel"]) == {"abuseipdb", "otx_ip"}
+
+
+def test_hash_gets_both_hash_providers(monkeypatch):
+    monkeypatch.setattr(pipeline.enrich, "check_hash", lambda h: {"stub": "virustotal"})
+    result = enrich({"file_sha256": "a" * 64})
+    assert set(result["intel"]) == {"virustotal", "otx_hash"}
+
+
+def test_one_provider_failing_does_not_affect_the_other(monkeypatch):
+    def otx_down(ip):
+        raise requests.Timeout("OTX timed out")
+
+    monkeypatch.setattr(pipeline.enrich, "check_ip", lambda ip: {"abuse_score": 100})
+    monkeypatch.setattr(pipeline.intel.otx, "check_ip", otx_down)
+
+    intel = enrich({"src_ip": "8.8.8.8"})["intel"]
+    assert intel["abuseipdb"] == {"abuse_score": 100}
+    assert intel["otx_ip"] == {"error": "OTX timed out"}
 
 
 def test_invalid_ip_is_skipped_not_crashed():
