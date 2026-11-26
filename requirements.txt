@@ -2,3 +2,5 @@
 requests==2.34.2
 python-dotenv==1.2.4
 geoip2==5.4.0
+langgraph==1.2.24
+langchain-groq==1.2.1
