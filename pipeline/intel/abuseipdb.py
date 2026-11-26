@@ -4,6 +4,7 @@ API docs: https://docs.abuseipdb.com (CHECK endpoint).
 Requires ABUSEIPDB_API_KEY in .env (only needed on a cache miss).
 """
 
+import logging
 import os
 
 import requests
@@ -15,6 +16,8 @@ from pipeline.intel.cache import get_cached, save_cached
 load_dotenv()
 
 API_URL = "https://api.abuseipdb.com/api/v2/check"
+
+logger = logging.getLogger(__name__)
 
 
 def _summarize(ip, data):
@@ -43,10 +46,10 @@ def check_ip(ip):
     # Cache first: a hit costs no API quota and works without an API key.
     cached_result = get_cached("abuseipdb", ip)
     if cached_result is not None:
-        print(f"Cache hit for {ip}")
+        logger.debug("Cache hit for %s", ip)
         return _summarize(ip, cached_result)
 
-    print(f"Cache miss for {ip}")
+    logger.debug("Cache miss for %s, calling AbuseIPDB", ip)
 
     api_key = os.environ.get("ABUSEIPDB_API_KEY")
     if not api_key:
@@ -69,4 +72,5 @@ def check_ip(ip):
 
 if __name__ == "__main__":
     # Quick manual check: python -m pipeline.intel.abuseipdb
+    logging.basicConfig(level=logging.DEBUG)
     print(check_ip("8.8.8.8"))
