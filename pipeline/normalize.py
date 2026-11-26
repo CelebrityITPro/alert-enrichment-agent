@@ -27,6 +27,8 @@ def normalize(alert):
         "description": rule.get("description"),
         "severity": rule.get("level"),  # Wazuh scale 0-15
         "mitre_ids": (rule.get("mitre") or {}).get("id") or [],
+        # Wazuh's categories, e.g. "authentication_success" (used by correlation).
+        "rule_groups": rule.get("groups") or [],
         "host": agent.get("name"),
         "src_ip": data.get("srcip"),
         # First non-empty value wins: failed login, successful login, then file owner.

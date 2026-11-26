@@ -1,3 +1,4 @@
 # Add dependencies as you need them (pin versions once things work).
 requests==2.34.2
 python-dotenv==1.2.4
+geoip2==5.4.0

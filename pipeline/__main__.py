@@ -1,7 +1,7 @@
 """Pipeline entry point: run with `python -m pipeline`.
 
 Flow: load alerts -> normalize to one standard shape -> enrich with threat intel
--> write to data/enriched/alerts.jsonl.
+-> correlate across alerts (impossible travel) -> write to data/enriched/alerts.jsonl.
 Settings come from environment variables (see .env.example):
   PIPELINE_MODE  fixtures | wazuh
   LOG_LEVEL      DEBUG | INFO | WARNING | ERROR   (default INFO)
@@ -13,6 +13,7 @@ import os
 from pipeline.ingest import load_fixtures
 from pipeline.normalize import normalize
 from pipeline.enrich import enrich
+from pipeline.correlate import detect_impossible_travel
 from pipeline.output import write_jsonl
 
 # fixtures = read sample alerts from ./fixtures (no lab needed)
@@ -59,14 +60,18 @@ def main():
         logger.debug("%s | ip=%s | intel=%s", e["description"], e["src_ip"], list(e["intel"]))
         enriched.append(e)
 
+    # Correlation needs the whole batch, so it runs after every alert is enriched.
+    enriched = detect_impossible_travel(enriched)
+
     count = write_jsonl(enriched, OUTPUT_PATH)
 
     # One-line run summary at INFO level.
     looked_up = sum(1 for e in enriched if e["intel"])
     failed = sum(1 for e in enriched for r in e["intel"].values() if "error" in r)
+    correlated = sum(1 for e in enriched if e["correlation"])
     logger.info(
-        "Done: %d alerts written to %s (%d with intel, %d lookup errors)",
-        count, OUTPUT_PATH, looked_up, failed,
+        "Done: %d alerts written to %s (%d with intel, %d lookup errors, %d correlations)",
+        count, OUTPUT_PATH, looked_up, failed, correlated,
     )
 
 

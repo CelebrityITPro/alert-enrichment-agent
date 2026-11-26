@@ -34,8 +34,13 @@ def test_empty_alert_does_not_crash():
     n = normalize({})
     assert n["src_ip"] is None
     assert n["mitre_ids"] == []
-    assert set(n.keys()) == {"source","alert_id","timestamp","rule_id","description","severity",
-                                "mitre_ids","host","src_ip","user","file_path","file_sha256","raw_log"}
+    assert n["rule_groups"] == []
+    # Schema contract: if a field is added, renamed or removed, this fails on purpose.
+    assert set(n.keys()) == {
+        "source", "alert_id", "timestamp", "rule_id", "description", "severity",
+        "mitre_ids", "rule_groups", "host", "src_ip", "user", "file_path",
+        "file_sha256", "raw_log",
+    }
 
 
 def test_null_sections_do_not_crash():
