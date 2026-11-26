@@ -8,6 +8,7 @@
 - finalize: asks for the answer in the TriageResult schema and validates it
 
 The tool-call cap keeps the agent from looping forever and protects the free-tier quota.
+Before the graph runs, a prompt-injection classifier scans the alert (agent/guard.py).
 A human-approval pause will be added in Phase 6, when the first real actions exist.
 """
 
@@ -19,6 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
+from agent.guard import scan
 from agent.prepare import alert_for_llm
 from agent.prompts import FINAL_INSTRUCTION, SYSTEM_PROMPT, user_message
 from agent.schema import TriageResult
@@ -75,21 +77,49 @@ def build_graph(llm, tools):
     return graph.compile()
 
 
-def triage(alert, batch, llm):
-    """Triage one enriched alert. Never raises: errors are recorded on the result (fail soft)."""
+OVERRIDE_VERDICTS = {"false_positive", "benign_true_positive"}
+OVERRIDE_EVIDENCE = "Prompt-injection attempt detected in alert text by classifier; verdict raised to needs_investigation."
+
+
+def apply_guard_override(result, guard_result):
+    """If injection is suspected, never let the alert be dismissed as harmless (ADR 0008).
+
+    Returns (result, overridden). true_positive / needs_investigation are left alone.
+    """
+    if not (guard_result.get("suspected") and result and result["verdict"] in OVERRIDE_VERDICTS):
+        return result, False
+    result = {**result, "verdict": "needs_investigation",
+              "key_evidence": [OVERRIDE_EVIDENCE, *result.get("key_evidence", [])][:5]}
+    return result, True
+
+
+def triage(alert, batch, llm, guard=scan):
+    """Triage one enriched alert. Never raises: errors are recorded on the result (fail soft).
+
+    `guard` is injectable so tests can pass a fake prompt-injection scanner.
+    """
     alert_id = alert.get("alert_id")
+    guard_result = guard(alert)
     try:
+        view = alert_for_llm(alert)
+        if guard_result.get("suspected"):
+            view["prompt_injection_suspected"] = {
+                "score": guard_result["score"],
+                "note": "A classifier flagged text in this alert as a likely prompt-injection attempt.",
+            }
         app = build_graph(llm, make_tools(batch, alert_id))
         state = app.invoke(
             {
-                "messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(user_message(alert_for_llm(alert)))],
+                "messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(user_message(view))],
                 "tool_calls_made": 0,
                 "result": None,
             },
             {"recursion_limit": 2 * MAX_TOOL_CALLS + 5},
         )
-        return {"alert_id": alert_id, "triage": state["result"],
-                "tool_calls": state["tool_calls_made"], "error": None}
+        result, overridden = apply_guard_override(state["result"], guard_result)
+        return {"alert_id": alert_id, "triage": result, "tool_calls": state["tool_calls_made"],
+                "prompt_guard": guard_result, "guard_override": overridden, "error": None}
     except Exception as e:  # noqa: BLE001 - one bad alert must not stop the batch
         logger.warning("Triage failed for alert %s: %s", alert_id, e)
-        return {"alert_id": alert_id, "triage": None, "tool_calls": 0, "error": str(e)[:300]}
+        return {"alert_id": alert_id, "triage": None, "tool_calls": 0,
+                "prompt_guard": guard_result, "guard_override": False, "error": str(e)[:300]}

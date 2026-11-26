@@ -171,12 +171,46 @@ def test_llm_failure_is_recorded_not_raised():
     assert "rate limit" in r["error"]
 
 
+# ---------- prompt guard integration ----------
+
+def flagged(alert):
+    return {"enabled": True, "score": 0.99, "suspected": True, "chunks": 1, "error": None}
+
+
+def test_suspected_injection_is_shown_to_the_agent():
+    llm = FakeLLM(replies=[])
+    triage(BATCH[0], BATCH, llm, guard=flagged)
+    assert "prompt_injection_suspected" in llm.seen[0][1].content
+
+
+def test_fooled_agent_is_overridden_to_needs_investigation():
+    fooled = {**GOOD_RESULT, "verdict": "false_positive", "confidence": "high"}
+    r = triage(BATCH[0], BATCH, FakeLLM(replies=[], result=fooled), guard=flagged)
+    assert r["triage"]["verdict"] == "needs_investigation"
+    assert r["guard_override"] is True
+    assert "Prompt-injection" in r["triage"]["key_evidence"][0]
+
+
+def test_true_positive_is_not_overridden():
+    r = triage(BATCH[0], BATCH, FakeLLM(replies=[]), guard=flagged)
+    assert r["triage"]["verdict"] == "true_positive"
+    assert r["guard_override"] is False
+
+
 # ---------- provider selection ----------
 
 def test_unknown_provider_is_rejected(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "mystery")
     with pytest.raises(ValueError, match="Unknown LLM_PROVIDER"):
         get_llm()
+
+
+def test_empty_provider_and_model_fall_back_to_defaults(monkeypatch):
+    # Regression: `LLM_PROVIDER=` (empty) in .env crashed the eval (2026-11-25).
+    from agent.llm import model_name
+    monkeypatch.setenv("LLM_PROVIDER", "")
+    monkeypatch.setenv("LLM_MODEL", "  ")
+    assert model_name() == "groq:openai/gpt-oss-120b"
 
 
 def test_groq_without_key_gives_clear_error(monkeypatch):
