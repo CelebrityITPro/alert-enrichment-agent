@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_MODELS = {
-    "groq": "openai/gpt-oss-120b",
+    "groq": "openai/gpt-oss-20b",
     "ollama": "llama3.1",
 }
 

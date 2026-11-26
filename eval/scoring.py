@@ -38,10 +38,15 @@ def score(runs, labels):
         }
 
     total_runs = sum(a["runs"] for a in per_alert.values())
+    total_correct = sum(a["correct"] for a in per_alert.values())
+    completed = total_runs - sum(a["errors"] for a in per_alert.values())
     overall = {
         "alerts": len(per_alert),
         "total_runs": total_runs,
-        "accuracy": round(sum(a["correct"] for a in per_alert.values()) / total_runs, 3) if total_runs else 0.0,
+        "accuracy": round(total_correct / total_runs, 3) if total_runs else 0.0,
+        # Same, but ignoring failed runs (e.g. rate limits), so quota problems
+        # don't look like bad reasoning. Report both.
+        "accuracy_completed": round(total_correct / completed, 3) if completed else 0.0,
         "avg_consistency": round(sum(a["consistency"] for a in per_alert.values()) / len(per_alert), 3)
         if per_alert else 0.0,
         "overconfident_runs": sum(a["overconfident"] for a in per_alert.values()),

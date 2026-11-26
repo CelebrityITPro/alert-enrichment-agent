@@ -37,8 +37,11 @@ class FakeLLM:
         self.replies = list(replies)
         self.result = result
         self.seen = []  # every message list the "LLM" received
+        self.bound_tools = []
+        self.finalize_calls = 0
 
     def bind_tools(self, tools):
+        self.bound_tools = tools
         return self
 
     def with_structured_output(self, schema):
@@ -47,6 +50,7 @@ class FakeLLM:
         class Structured:
             def invoke(self, messages):
                 outer.seen.append(messages)
+                outer.finalize_calls += 1
                 return schema(**outer.result)
 
         return Structured()
@@ -154,6 +158,39 @@ def test_tool_loop_is_capped():
     assert not any(isinstance(m, AIMessage) and m.tool_calls for m in final_messages[-2:])
 
 
+def test_submit_tool_is_offered_to_the_llm():
+    llm = FakeLLM(replies=[])
+    triage(BATCH[0], BATCH, llm)
+    names = [getattr(t, "name", None) or t.get("function", {}).get("name") for t in llm.bound_tools]
+    assert names == ["related_alerts", "map_mitre", "submit_triage"]
+
+
+def test_submit_triage_is_used_as_final_answer_without_finalize_call():
+    submitted = {**GOOD_RESULT, "verdict": "needs_investigation", "confidence": "medium"}
+    llm = FakeLLM(replies=[tool_call("submit_triage", submitted)])
+    r = triage(BATCH[1], BATCH, llm)
+
+    assert r["triage"]["verdict"] == "needs_investigation"
+    assert llm.finalize_calls == 0  # one LLM call saved
+
+
+def test_invalid_submit_falls_back_to_finalize():
+    bad = {**GOOD_RESULT, "verdict": "totally_fine"}  # not an allowed verdict
+    llm = FakeLLM(replies=[tool_call("submit_triage", bad)])
+    r = triage(BATCH[1], BATCH, llm)
+
+    assert r["error"] is None
+    assert r["triage"]["verdict"] == "true_positive"  # from the finalize fallback
+    assert llm.finalize_calls == 1
+
+
+def test_submitted_answer_is_still_cleaned_and_validated():
+    submitted = {**GOOD_RESULT, "mitre_techniques": ["T1078", "not-an-id"], "summary": "line1\nline2"}
+    r = triage(BATCH[1], BATCH, FakeLLM(replies=[tool_call("submit_triage", submitted)]))
+    assert r["triage"]["mitre_techniques"] == ["T1078"]
+    assert "\n" not in r["triage"]["summary"]
+
+
 def test_alert_data_is_wrapped_as_untrusted():
     llm = FakeLLM(replies=[])
     triage(BATCH[0], BATCH, llm)
@@ -210,7 +247,7 @@ def test_empty_provider_and_model_fall_back_to_defaults(monkeypatch):
     from agent.llm import model_name
     monkeypatch.setenv("LLM_PROVIDER", "")
     monkeypatch.setenv("LLM_MODEL", "  ")
-    assert model_name() == "groq:openai/gpt-oss-120b"
+    assert model_name() == "groq:openai/gpt-oss-20b"
 
 
 def test_groq_without_key_gives_clear_error(monkeypatch):

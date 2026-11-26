@@ -22,7 +22,7 @@
     "name": "wazuh-manager"
   },
   "id": "1763892902.104857",
-  "full_log": "Nov 23 10:15:02 lab-ubuntu-01 sshd[2345]: Failed password for invalid user admin from 203.0.113.45 port 51234 ssh2",
+  "full_log": "Nov 23 10:15:02 lab-ubuntu-01 sshd[2345]: Failed password for invalid user admin from 167.99.142.71 port 51234 ssh2",
   "predecoder": {
     "program_name": "sshd",
     "timestamp": "Nov 23 10:15:02",
@@ -33,7 +33,7 @@
     "name": "sshd"
   },
   "data": {
-    "srcip": "203.0.113.45",
+    "srcip": "167.99.142.71",
     "srcport": "51234",
     "srcuser": "admin"
   },

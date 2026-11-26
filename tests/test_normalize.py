@@ -15,7 +15,7 @@ def load(name):
 
 def test_bruteforce_extracts_ip_and_user():
     n = normalize(load("ssh_bruteforce_001.json"))
-    assert n["src_ip"] == "203.0.113.45"
+    assert n["src_ip"] == "167.99.142.71"
     assert n["user"] == "admin"
 
 

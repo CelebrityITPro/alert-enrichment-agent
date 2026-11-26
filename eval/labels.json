@@ -22,7 +22,7 @@
   },
   "1763892902.104857": {
     "fixture": "ssh_bruteforce_001.json",
-    "scenario": "SSH brute force from a documentation-range IP with no intel",
+    "scenario": "SSH brute force from a clean data-centre IP with no intel (new attacker, no reputation yet)",
     "acceptable": ["true_positive", "needs_investigation"]
   },
   "1763937041.118204": {

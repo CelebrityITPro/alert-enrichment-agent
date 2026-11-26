@@ -74,7 +74,8 @@ def main():
         print(f"  {a['correct']}/{a['runs']} correct  consistency {a['consistency']:.2f}  "
               f"overconfident {a['overconfident']}  {a['verdicts']}  - {a['scenario']}")
     o = report["overall"]
-    print(f"\nOverall: accuracy {o['accuracy']:.1%} | avg consistency {o['avg_consistency']:.2f} | "
+    print(f"\nOverall: accuracy {o['accuracy']:.1%} (completed runs only: {o['accuracy_completed']:.1%}) | "
+          f"avg consistency {o['avg_consistency']:.2f} | "
           f"overconfident runs {o['overconfident_runs']} | errors {o['error_runs']}")
     print(f"Report saved to {out}")
 

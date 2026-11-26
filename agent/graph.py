@@ -1,11 +1,18 @@
-"""The triage workflow as a LangGraph graph (ADR 0007).
+"""The triage workflow as a LangGraph graph (ADR 0007, ADR 0009).
 
-    START -> analyze --(tool calls, under the cap)--> tools -> analyze ...
-                     --(no tool calls, or cap hit)--> finalize -> END
+    START -> analyze --(submit_triage called)--------------> submit ---------> END
+                     --(tool calls, under the cap)--> tools -> analyze ...      ^
+                     --(no tool calls, or cap hit)--> finalize -----------------'
+                                       (submit with invalid args also -> finalize)
 
 - analyze:  the LLM reads the alert and may request tool calls
-- tools:    runs the requested tools (read-only)
-- finalize: asks for the answer in the TriageResult schema and validates it
+- tools:    runs the requested read-only tools
+- submit:   the LLM handed in its final answer via the submit_triage tool; validate it
+- finalize: fallback - ask for the answer in the TriageResult schema and validate it
+
+Why submit_triage exists: some models (gpt-oss-20b) hand in their final answer as a
+tool call during analysis. Offering a real "submit" tool matches that behaviour and
+saves one LLM call per alert; finalize remains the safety net.
 
 The tool-call cap keeps the agent from looping forever and protects the free-tier quota.
 Before the graph runs, a prompt-injection classifier scans the alert (agent/guard.py).
@@ -16,9 +23,11 @@ import logging
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
+from pydantic import ValidationError
 
 from agent.guard import scan
 from agent.prepare import alert_for_llm
@@ -29,6 +38,25 @@ from agent.tools import make_tools
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_CALLS = 3
+SUBMIT_TOOL = "submit_triage"
+
+
+def submit_tool_schema():
+    """The TriageResult schema exposed as a tool the LLM calls to hand in its answer."""
+    spec = convert_to_openai_tool(TriageResult)
+    spec["function"]["name"] = SUBMIT_TOOL
+    spec["function"]["description"] = (
+        "Submit your final triage for this alert. Call this exactly once, when you are done."
+    )
+    return spec
+
+
+def _submit_call(message):
+    """Return the submit_triage tool call in an AI message, if there is one."""
+    for call in getattr(message, "tool_calls", None) or []:
+        if call["name"] == SUBMIT_TOOL:
+            return call
+    return None
 
 
 class TriageState(TypedDict):
@@ -39,12 +67,17 @@ class TriageState(TypedDict):
 
 def build_graph(llm, tools):
     """Wire the nodes together. `llm` is any LangChain chat model that supports tools."""
-    llm_with_tools = llm.bind_tools(tools)
+    llm_with_tools = llm.bind_tools([*tools, submit_tool_schema()])
     structured_llm = llm.with_structured_output(TriageResult)
     tool_node = ToolNode(tools)
 
     def analyze(state):
         return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+    def submit(state):
+        # Same Pydantic validation as finalize: the tool route is not a shortcut around it.
+        call = _submit_call(state["messages"][-1])
+        return {"result": TriageResult(**call["args"]).model_dump()}
 
     def run_tools(state):
         requested = len(state["messages"][-1].tool_calls)
@@ -62,6 +95,14 @@ def build_graph(llm, tools):
 
     def route_after_analyze(state):
         last = state["messages"][-1]
+        call = _submit_call(last)
+        if call is not None:
+            try:
+                TriageResult(**call["args"])
+                return "submit"
+            except (ValidationError, TypeError):
+                logger.info("submit_triage arguments invalid; falling back to finalize")
+                return "finalize"
         if getattr(last, "tool_calls", None) and state["tool_calls_made"] < MAX_TOOL_CALLS:
             return "tools"
         return "finalize"
@@ -69,10 +110,12 @@ def build_graph(llm, tools):
     graph = StateGraph(TriageState)
     graph.add_node("analyze", analyze)
     graph.add_node("tools", run_tools)
+    graph.add_node("submit", submit)
     graph.add_node("finalize", finalize)
     graph.add_edge(START, "analyze")
-    graph.add_conditional_edges("analyze", route_after_analyze, ["tools", "finalize"])
+    graph.add_conditional_edges("analyze", route_after_analyze, ["submit", "tools", "finalize"])
     graph.add_edge("tools", "analyze")
+    graph.add_edge("submit", END)
     graph.add_edge("finalize", END)
     return graph.compile()
 

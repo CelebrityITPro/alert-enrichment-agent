@@ -40,6 +40,7 @@ def test_errors_count_as_not_correct():
     report = score([run("a", None, None, error="rate limit"), run("a", "true_positive")], LABELS)
     assert report["per_alert"]["a"]["errors"] == 1
     assert report["overall"]["accuracy"] == 0.5
+    assert report["overall"]["accuracy_completed"] == 1.0  # the one completed run was right
 
 
 def test_every_label_points_at_an_existing_fixture():
