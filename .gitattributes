@@ -1,0 +1,3 @@
+# Store all text files with LF line endings (Linux-style), whatever the OS.
+# Matters for Docker containers and the AWS deployment, which run Linux.
+* text=auto eol=lf
