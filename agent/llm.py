@@ -17,12 +17,21 @@ DEFAULT_MODELS = {
 }
 
 
+def _provider():
+    # `or "groq"`: an empty value (LLM_PROVIDER= in .env) also means "use the default".
+    return (os.environ.get("LLM_PROVIDER") or "groq").lower().strip()
+
+
+def _model(provider):
+    return (os.environ.get("LLM_MODEL") or "").strip() or DEFAULT_MODELS.get(provider, "?")
+
+
 def get_llm():
     """Return a LangChain chat model for the configured provider."""
-    provider = os.environ.get("LLM_PROVIDER", "groq").lower().strip()
+    provider = _provider()
     if provider not in DEFAULT_MODELS:
         raise ValueError(f"Unknown LLM_PROVIDER {provider!r}. Use one of {sorted(DEFAULT_MODELS)}.")
-    model = (os.environ.get("LLM_MODEL") or DEFAULT_MODELS[provider]).strip()
+    model = _model(provider)
 
     if provider == "groq":
         from langchain_groq import ChatGroq
@@ -46,5 +55,5 @@ def get_llm():
 
 def model_name():
     """Provider/model string recorded with each triage result (useful for evaluation)."""
-    provider = os.environ.get("LLM_PROVIDER", "groq").lower().strip()
-    return f"{provider}:{os.environ.get('LLM_MODEL') or DEFAULT_MODELS.get(provider, '?')}"
+    provider = _provider()
+    return f"{provider}:{_model(provider)}"
